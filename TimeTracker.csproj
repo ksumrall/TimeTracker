@@ -51,18 +51,6 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="CurrentEffortInput.cs">
-      <SubType>Form</SubType>
-    </Compile>
-    <Compile Include="CurrentEffortInput.Designer.cs">
-      <DependentUpon>CurrentEffortInput.cs</DependentUpon>
-    </Compile>
-    <Compile Include="_Installer1.cs">
-      <SubType>Component</SubType>
-    </Compile>
-    <Compile Include="_Installer1.Designer.cs">
-      <DependentUpon>_Installer1.cs</DependentUpon>
-    </Compile>
     <Compile Include="TimeTrackerTrayApp.cs">
       <SubType>Form</SubType>
     </Compile>
@@ -70,19 +58,8 @@
     <Compile Include="TaskbarNotifier.cs">
       <SubType>Form</SubType>
     </Compile>
-    <Compile Include="_TimeTracking.cs" />
-    <Compile Include="_TimeTrackingService.cs">
-      <SubType>Component</SubType>
-    </Compile>
-    <Compile Include="_TimeTrackingService.Designer.cs">
-      <DependentUpon>_TimeTrackingService.cs</DependentUpon>
-    </Compile>
   </ItemGroup>
   <ItemGroup>
-    <EmbeddedResource Include="CurrentEffortInput.resx">
-      <DependentUpon>CurrentEffortInput.cs</DependentUpon>
-    </EmbeddedResource>
-    <EmbeddedResource Include="Icon1.ico" />
     <EmbeddedResource Include="TimeTrackerTrayApp.resx">
       <DependentUpon>TimeTrackerTrayApp.cs</DependentUpon>
     </EmbeddedResource>
