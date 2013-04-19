@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Configuration;
 using System.ServiceProcess;
 using System.Text;
 using System.Drawing;
@@ -18,7 +19,7 @@ namespace TimeTracker
         static string _cacheTitle = "";
         protected Timer timer = new Timer();
 
-        private static string LOG_FILE = "c:\\temp\\effortlog.txt";
+        private string _logFile = "c:\\temp\\effortlog.txt";
 
         private NotifyIcon trayIcon;
         private ContextMenu trayMenu;
@@ -125,6 +126,8 @@ namespace TimeTracker
 
         public TimeTrackerTrayApp()
         {
+            _logFile = ConfigurationManager.AppSettings["LogFile"];
+
             Microsoft.Win32.SystemEvents.SessionSwitch += new Microsoft.Win32.SessionSwitchEventHandler(SystemEvents_SessionSwitch);
             trayMenu = new System.Windows.Forms.ContextMenu();
             trayMenu.MenuItems.Add("Update Effort", OnPromptForCurrentEffort);
@@ -170,20 +173,20 @@ namespace TimeTracker
             ShowPopup();
         }
 
-        protected override void WndProc(ref Message m)
-        {
-            // check for session change notifications
-            //if (m.Msg == SessionChangeMessage)
-            //{
-            //    if (m.WParam.ToInt32() == SessionLockParam)
-            //        OnSessionLock(); // Do something when locked
-            //    else if (m.WParam.ToInt32() == SessionUnlockParam)
-            //        OnSessionUnlock(); // Do something when unlocked
-            //}
+        //protected override void WndProc(ref Message m)
+        //{
+        //    // check for session change notifications
+        //    //if (m.Msg == SessionChangeMessage)
+        //    //{
+        //    //    if (m.WParam.ToInt32() == SessionLockParam)
+        //    //        OnSessionLock(); // Do something when locked
+        //    //    else if (m.WParam.ToInt32() == SessionUnlockParam)
+        //    //        OnSessionUnlock(); // Do something when unlocked
+        //    //}
 
-            base.WndProc(ref m);
-            return;
-        }
+        //    base.WndProc(ref m);
+        //    return;
+        //}
 
         protected void SystemEvents_SessionSwitch(object sender, Microsoft.Win32.SessionSwitchEventArgs e)
         {
@@ -260,7 +263,7 @@ namespace TimeTracker
 
         void taskbarNotifier1_OnHide(object obj, EventArgs ea)
         {
-            LogEffort();
+            LogEffort(_logFile);
         }
 
         #endregion
@@ -315,6 +318,7 @@ namespace TimeTracker
             StringBuilder buff = new StringBuilder(nChars);
             string curTitle;
             string moduleName;
+            string logFile = ConfigurationManager.AppSettings["LogFile"];
 
             GetWindowText(hwnd, buff, nChars);
             curTitle = buff.ToString();
@@ -323,7 +327,7 @@ namespace TimeTracker
             {
                 _cacheTitle = curTitle;
                 moduleName = GetTopWindowName(hwnd);
-                System.IO.File.AppendAllText(LOG_FILE
+                System.IO.File.AppendAllText(logFile
                     , string.Format("{0}, {1}, {2}, {3}{4}"
                         , DateTime.Now.ToString("G")
                         , hwnd.ToString()
@@ -335,10 +339,10 @@ namespace TimeTracker
             }
         }
 
-        private static void LogEffort()
+        private static void LogEffort(string logFile)
         {
-            System.IO.File.AppendAllText(LOG_FILE, string.Format("=========================={0}", Environment.NewLine));
-            System.IO.File.AppendAllText(LOG_FILE, string.Format("{0}, {1}{2}", DateTime.Now.ToString("G"), _effort, Environment.NewLine));
+            System.IO.File.AppendAllText(logFile, string.Format("=========================={0}", Environment.NewLine));
+            System.IO.File.AppendAllText(logFile, string.Format("{0}, {1}{2}", DateTime.Now.ToString("G"), _effort, Environment.NewLine));
         }
 
         private void PromptForCurrentEffort()
@@ -349,7 +353,7 @@ namespace TimeTracker
             {
                 _effort = value;
                 taskbarNotifier1.Hide();
-                LogEffort();
+                LogEffort(_logFile);
                 timer.Stop();
                 timer.Start();
             }
@@ -379,14 +383,14 @@ namespace TimeTracker
         void OnSessionLock()
         {
             timer.Enabled = false;
-            System.IO.File.AppendAllText(LOG_FILE, string.Format("#######################################################################{0}", Environment.NewLine));
-            System.IO.File.AppendAllText(LOG_FILE, string.Format("{0}, {1}{2}", DateTime.Now.ToString("G"), "Work Station Locked", Environment.NewLine));
+            System.IO.File.AppendAllText(_logFile, string.Format("#######################################################################{0}", Environment.NewLine));
+            System.IO.File.AppendAllText(_logFile, string.Format("{0}, {1}{2}", DateTime.Now.ToString("G"), "Work Station Locked", Environment.NewLine));
         }
 
         void OnSessionUnlock()
         {
-            System.IO.File.AppendAllText(LOG_FILE, string.Format("{0}, {1}{2}", DateTime.Now.ToString("G"), "Work Station UnLocked", Environment.NewLine));
-            System.IO.File.AppendAllText(LOG_FILE, string.Format("#######################################################################{0}", Environment.NewLine));
+            System.IO.File.AppendAllText(_logFile, string.Format("{0}, {1}{2}", DateTime.Now.ToString("G"), "Work Station UnLocked", Environment.NewLine));
+            System.IO.File.AppendAllText(_logFile, string.Format("#######################################################################{0}", Environment.NewLine));
             timer.Enabled = true;
         }
 
