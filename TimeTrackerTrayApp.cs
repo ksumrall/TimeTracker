@@ -138,9 +138,9 @@ namespace TimeTracker
 
             taskbarNotifier1 = new TaskbarNotifier();
             taskbarNotifier1.SetBackgroundBitmap(new Bitmap(GetType(), "skin.bmp"), Color.FromArgb(255, 0, 255));
-            taskbarNotifier1.SetCloseBitmap(new Bitmap(GetType(), "close.bmp"), Color.FromArgb(255, 0, 255), new Point(127, 8));
-            taskbarNotifier1.TitleRectangle = new Rectangle(40, 9, 70, 25);
-            taskbarNotifier1.ContentRectangle = new Rectangle(8, 41, 133, 68);
+            taskbarNotifier1.SetCloseBitmap(new Bitmap(GetType(), "close.bmp"), Color.FromArgb(255, 0, 255), new Point(177, 8));
+            taskbarNotifier1.TitleRectangle = new Rectangle(50, 9, 120, 25);
+            taskbarNotifier1.ContentRectangle = new Rectangle(8, 41, 180, 68);
             taskbarNotifier1.TitleClick += new EventHandler(taskbarNotifier1_TitleClick);
             taskbarNotifier1.ContentClick += new EventHandler(taskbarNotifier1_ContentClick);
             taskbarNotifier1.CloseClick += new EventHandler(taskbarNotifier1_CloseClick);
