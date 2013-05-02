@@ -253,7 +253,7 @@ namespace TimeTracker
 
         void taskbarNotifier1_TitleClick(object obj, EventArgs ea)
         {
-            MessageBox.Show("Title was Clicked");
+            //MessageBox.Show("Title was Clicked");
         }
 
         void taskbarNotifier1_ContentClick(object obj, EventArgs ea)
