@@ -13,11 +13,14 @@ namespace TimeTracker
     {
         #region member variables
 
+        const int BALOON_VISIBILITY_TIME = 15000;
+
         TaskbarNotifier taskbarNotifier1;
         static string _effort = "goofing off";
         static IntPtr _foregroundWindowHandle = IntPtr.Zero;
         static string _cacheTitle = "";
         protected Timer timer = new Timer();
+        protected Timer logTimer = new Timer();
 
         private string _logFile = "c:\\temp\\effortlog.txt";
 
@@ -138,6 +141,8 @@ namespace TimeTracker
             trayIcon.Icon = new Icon(typeof(TimeTrackerTrayApp), "stopwatch.ico");
             trayIcon.ContextMenu = trayMenu;
             trayIcon.Visible = true;
+            trayIcon.DoubleClick += new EventHandler(trayIcon_DoubleClick);
+            trayIcon.BalloonTipClicked += new EventHandler(trayIcon_BalloonTipClicked);
 
             taskbarNotifier1 = new TaskbarNotifier();
             taskbarNotifier1.SetBackgroundBitmap(new Bitmap(GetType(), "skin.bmp"), Color.FromArgb(255, 0, 255));
@@ -170,7 +175,22 @@ namespace TimeTracker
             timer.Interval = ((60 * MINUTES_BETWEEN_PROMPTS) * 1000); // 60 seconds * min * millisecond
             timer.Tick += new EventHandler(OnTimer);
 
+            logTimer = new Timer();
+            logTimer.Interval = BALOON_VISIBILITY_TIME;
+            logTimer.Tick += delegate(System.Object o, System.EventArgs e) { LogEffort(_logFile); };
+            logTimer.Enabled = false;
+
             ShowPopup();
+        }
+
+        void trayIcon_BalloonTipClicked(object sender, EventArgs e)
+        {
+            PromptForCurrentEffort();
+        }
+
+        void trayIcon_DoubleClick(object sender, EventArgs e)
+        {
+            PromptForCurrentEffort();
         }
 
         //protected override void WndProc(ref Message m)
@@ -264,6 +284,7 @@ namespace TimeTracker
         void taskbarNotifier1_OnHide(object obj, EventArgs ea)
         {
             LogEffort(_logFile);
+            logTimer.Enabled = false;
         }
 
         #endregion
@@ -272,7 +293,11 @@ namespace TimeTracker
 
         private void ShowPopup()
         {
-            taskbarNotifier1.Show("What are you working on?", _effort, Int32.Parse("500"), Int32.Parse("10000"), Int32.Parse("5000"));
+            //taskbarNotifier1.Show("What are you working on?", _effort, Int32.Parse("500"), Int32.Parse("10000"), Int32.Parse("5000"));
+            trayIcon.BalloonTipTitle = "What are you working on?";
+            trayIcon.BalloonTipText = _effort;
+            trayIcon.ShowBalloonTip(BALOON_VISIBILITY_TIME);
+            logTimer.Enabled = true;
         }
 
         private static string GetActiveWindowTitle()
