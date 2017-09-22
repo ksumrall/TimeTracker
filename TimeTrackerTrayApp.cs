@@ -1,77 +1,57 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Configuration;
-using System.ServiceProcess;
-using System.Text;
 using System.Drawing;
-using System.Windows.Forms;
 using System.Runtime.InteropServices;
+using System.Text;
+using System.Windows.Forms;
 
 namespace TimeTracker
 {
-    class TimeTrackerTrayApp : Form
+    internal class TimeTrackerTrayApp : Form
     {
         #region member variables
 
-        const int BALOON_VISIBILITY_TIME = 15000;
-
-        TaskbarNotifier taskbarNotifier1;
-        static string _effort = "goofing off";
-        static IntPtr _foregroundWindowHandle = IntPtr.Zero;
-        static string _cacheTitle = "";
-        protected Timer timer = new Timer();
         protected Timer logTimer = new Timer();
+        protected Timer timer = new Timer();
+        private const int BALOON_VISIBILITY_TIME = 15000;
 
+        private const int MINUTES_BETWEEN_PROMPTS = 15;
+        private static string _cacheTitle = "";
+        private static string _effort = "goofing off";
+        private static IntPtr _foregroundWindowHandle = IntPtr.Zero;
+
+        // Need to ensure delegate is not collected while we're using it,
+        // storing it in a class field is simplest way to do this.
+        private static WinEventDelegate procDelegate = new WinEventDelegate(WinEventProc);
+
+        private IntPtr _hhook1;
+        private IntPtr _hhook2;
         private string _logFile = "c:\\temp\\effortlog.txt";
-
+        private TaskbarNotifier taskbarNotifier1;
         private NotifyIcon trayIcon;
         private ContextMenu trayMenu;
-
-        IntPtr _hhook1;
-        IntPtr _hhook2;
-
-        const int MINUTES_BETWEEN_PROMPTS = 15;
 
         #region capture foreground window title definitions
 
         [DllImport("user32.dll")]
-        static extern IntPtr GetForegroundWindow();
+        private static extern IntPtr GetForegroundWindow();
 
         [DllImport("user32.dll")]
-        static extern int GetWindowText(IntPtr hWnd, StringBuilder text, int count);
+        private static extern int GetWindowText(IntPtr hWnd, StringBuilder text, int count);
 
-        #endregion
+        #endregion capture foreground window title definitions
 
         #region active window change notification definitions
 
-        delegate void WinEventDelegate(IntPtr hWinEventHook, uint eventType,
-            IntPtr hwnd, int idObject, int idChild, uint dwEventThread, uint dwmsEventTime);
+        // Constants from winuser.h
+        private const uint EVENT_OBJECT_NAMECHANGE = 0x800C;
 
-        [DllImport("user32.dll")]
-        static extern IntPtr SetWinEventHook(uint eventMin, uint eventMax, IntPtr
-           hmodWinEventProc, WinEventDelegate lpfnWinEventProc, uint idProcess,
-           uint idThread, uint dwFlags);
+        private const uint EVENT_SYSTEM_FOREGROUND = 3;
 
-        [DllImport("user32.dll")]
-        static extern bool UnhookWinEvent(IntPtr hWinEventHook);
+        private const uint WINEVENT_OUTOFCONTEXT = 0;
 
-        [DllImport("user32.dll")]
-        static extern bool IsWindowVisible(IntPtr hWnd);
-
-        //  DWORD GetWindowThreadProcessId(
-        //      __in   HWND hWnd,
-        //      __out  LPDWORD lpdwProcessId
-        //  );
-        [DllImport("user32.dll")]
-        private static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
-
-        //HANDLE WINAPI OpenProcess(
-        //  __in  DWORD dwDesiredAccess,
-        //  __in  BOOL bInheritHandle,
-        //  __in  DWORD dwProcessId
-        //);
-        [DllImport("kernel32.dll")]
-        private static extern IntPtr OpenProcess(uint dwDesiredAccess, bool bInheritHandle, uint dwProcessId);
+        private delegate void WinEventDelegate(IntPtr hWinEventHook, uint eventType,
+                                    IntPtr hwnd, int idObject, int idChild, uint dwEventThread, uint dwmsEventTime);
 
         [DllImport("kernel32.dll")]
         private static extern bool CloseHandle(IntPtr handle);
@@ -86,15 +66,36 @@ namespace TimeTracker
         private static extern uint GetModuleFileNameEx(IntPtr hWnd, IntPtr hModule, StringBuilder lpFileName, int nSize);
 
         [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Auto)]
-        static extern uint GetWindowModuleFileName(IntPtr hwnd,
+        private static extern uint GetWindowModuleFileName(IntPtr hwnd,
            StringBuilder lpszFileName, uint cchFileNameMax);
 
-        // Constants from winuser.h
-        const uint EVENT_OBJECT_NAMECHANGE = 0x800C;
-        const uint EVENT_SYSTEM_FOREGROUND = 3;
-        const uint WINEVENT_OUTOFCONTEXT = 0;
+        //  DWORD GetWindowThreadProcessId(
+        //      __in   HWND hWnd,
+        //      __out  LPDWORD lpdwProcessId
+        //  );
+        [DllImport("user32.dll")]
+        private static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
 
-        #endregion
+        [DllImport("user32.dll")]
+        private static extern bool IsWindowVisible(IntPtr hWnd);
+
+        //HANDLE WINAPI OpenProcess(
+        //  __in  DWORD dwDesiredAccess,
+        //  __in  BOOL bInheritHandle,
+        //  __in  DWORD dwProcessId
+        //);
+        [DllImport("kernel32.dll")]
+        private static extern IntPtr OpenProcess(uint dwDesiredAccess, bool bInheritHandle, uint dwProcessId);
+
+        [DllImport("user32.dll")]
+        private static extern IntPtr SetWinEventHook(uint eventMin, uint eventMax, IntPtr
+           hmodWinEventProc, WinEventDelegate lpfnWinEventProc, uint idProcess,
+           uint idThread, uint dwFlags);
+
+        [DllImport("user32.dll")]
+        private static extern bool UnhookWinEvent(IntPtr hWinEventHook);
+
+        #endregion active window change notification definitions
 
         #region computer lock notification definitions
 
@@ -112,15 +113,11 @@ namespace TimeTracker
         //private const int SessionLockParam = 0x7;
         //private const int SessionUnlockParam = 0x8;
 
-        #endregion
+        #endregion computer lock notification definitions
 
-        // Need to ensure delegate is not collected while we're using it,
-        // storing it in a class field is simplest way to do this.
-        static WinEventDelegate procDelegate = new WinEventDelegate(WinEventProc);
+        #endregion member variables
 
-        #endregion
-
-        static void Main(string[] args)
+        private static void Main(string[] args)
         {
             Application.Run(new TimeTrackerTrayApp());
         }
@@ -158,7 +155,7 @@ namespace TimeTracker
 
             //WTSRegisterSessionNotification(this.Handle, NotifyForThisSession);
 
-            #endregion
+            #endregion listen for computer lock
 
             #region listen for active window change
 
@@ -169,7 +166,7 @@ namespace TimeTracker
             _hhook2 = SetWinEventHook(EVENT_OBJECT_NAMECHANGE, EVENT_OBJECT_NAMECHANGE, IntPtr.Zero,
                     procDelegate, 0, 0, WINEVENT_OUTOFCONTEXT);
 
-            #endregion
+            #endregion listen for active window change
 
             timer.Enabled = true;
             timer.Interval = ((60 * MINUTES_BETWEEN_PROMPTS) * 1000); // 60 seconds * min * millisecond
@@ -177,18 +174,30 @@ namespace TimeTracker
 
             logTimer = new Timer();
             logTimer.Interval = BALOON_VISIBILITY_TIME;
-            logTimer.Tick += delegate(System.Object o, System.EventArgs e) { LogEffort(_logFile); };
+            logTimer.Tick += delegate (System.Object o, System.EventArgs e) { LogEffort(_logFile); };
             logTimer.Enabled = false;
 
             ShowPopup();
         }
 
-        void trayIcon_BalloonTipClicked(object sender, EventArgs e)
+        protected void SystemEvents_SessionSwitch(object sender, Microsoft.Win32.SessionSwitchEventArgs e)
+        {
+            if (e.Reason == Microsoft.Win32.SessionSwitchReason.SessionLock)
+            {
+                OnSessionLock();
+            }
+            if (e.Reason == Microsoft.Win32.SessionSwitchReason.SessionUnlock)
+            {
+                OnSessionUnlock();
+            }
+        }
+
+        private void trayIcon_BalloonTipClicked(object sender, EventArgs e)
         {
             PromptForCurrentEffort();
         }
 
-        void trayIcon_DoubleClick(object sender, EventArgs e)
+        private void trayIcon_DoubleClick(object sender, EventArgs e)
         {
             PromptForCurrentEffort();
         }
@@ -208,44 +217,9 @@ namespace TimeTracker
         //    return;
         //}
 
-        protected void SystemEvents_SessionSwitch(object sender, Microsoft.Win32.SessionSwitchEventArgs e)
-        {
-            if (e.Reason == Microsoft.Win32.SessionSwitchReason.SessionLock)
-            {
-                OnSessionLock();
-            }
-            if (e.Reason == Microsoft.Win32.SessionSwitchReason.SessionUnlock)
-            {
-                OnSessionUnlock();
-            }
-        }
-
-        #endregion
+        #endregion constructor
 
         #region TimeTrackerTrayApp events
-
-        protected override void OnLoad(EventArgs e)
-        {
-            Visible = false;
-            ShowInTaskbar = false;
-            timer.Start();
-
-            base.OnLoad(e);
-        }
-
-        protected void OnExit(object obj, EventArgs ea)
-        {
-            UnhookWinEvent(_hhook1);
-            UnhookWinEvent(_hhook2);
-            //WTSUnRegisterSessionNotification(this.Handle);
-            trayIcon.Visible = false;
-            Application.Exit();
-        }
-
-        protected void OnPromptForCurrentEffort(object obj, EventArgs ea)
-        {
-            PromptForCurrentEffort();
-        }
 
         protected override void Dispose(bool disposing)
         {
@@ -258,135 +232,61 @@ namespace TimeTracker
             base.Dispose(disposing);
         }
 
+        protected void OnExit(object obj, EventArgs ea)
+        {
+            UnhookWinEvent(_hhook1);
+            UnhookWinEvent(_hhook2);
+            //WTSUnRegisterSessionNotification(this.Handle);
+            trayIcon.Visible = false;
+            Application.Exit();
+        }
+
+        protected override void OnLoad(EventArgs e)
+        {
+            Visible = false;
+            ShowInTaskbar = false;
+            timer.Start();
+
+            base.OnLoad(e);
+        }
+
+        protected void OnPromptForCurrentEffort(object obj, EventArgs ea)
+        {
+            PromptForCurrentEffort();
+        }
+
         protected void OnTimer(object obj, EventArgs ea)
         {
             ShowPopup();
         }
 
-        #endregion
+        #endregion TimeTrackerTrayApp events
 
         #region TaskbarNotifier events
 
-        void taskbarNotifier1_CloseClick(object obj, EventArgs ea)
+        private void taskbarNotifier1_CloseClick(object obj, EventArgs ea)
         {
         }
 
-        void taskbarNotifier1_TitleClick(object obj, EventArgs ea)
-        {
-            //MessageBox.Show("Title was Clicked");
-        }
-
-        void taskbarNotifier1_ContentClick(object obj, EventArgs ea)
+        private void taskbarNotifier1_ContentClick(object obj, EventArgs ea)
         {
             PromptForCurrentEffort();
         }
 
-        void taskbarNotifier1_OnHide(object obj, EventArgs ea)
+        private void taskbarNotifier1_OnHide(object obj, EventArgs ea)
         {
             LogEffort(_logFile);
             logTimer.Enabled = false;
         }
 
-        #endregion
+        private void taskbarNotifier1_TitleClick(object obj, EventArgs ea)
+        {
+            //MessageBox.Show("Title was Clicked");
+        }
+
+        #endregion TaskbarNotifier events
 
         #region private implementation
-
-        private void ShowPopup()
-        {
-            //taskbarNotifier1.Show("What are you working on?", _effort, Int32.Parse("500"), Int32.Parse("10000"), Int32.Parse("5000"));
-            trayIcon.BalloonTipTitle = "What are you working on?";
-            trayIcon.BalloonTipText = _effort;
-            trayIcon.ShowBalloonTip(BALOON_VISIBILITY_TIME);
-            logTimer.Enabled = true;
-        }
-
-        private static string GetActiveWindowTitle()
-        {
-            const int nChars = 256;
-            IntPtr handle = IntPtr.Zero;
-            StringBuilder Buff = new StringBuilder(nChars);
-            handle = GetForegroundWindow();
-
-            if (GetWindowText(handle, Buff, nChars) > 0)
-            {
-                return Buff.ToString();
-            }
-            return null;
-        }
-
-        static void WinEventProc(IntPtr hWinEventHook, uint eventType,
-            IntPtr hwnd, int idObject, int idChild, uint dwEventThread, uint dwmsEventTime)
-        {
-            switch (eventType)
-            {
-                case EVENT_OBJECT_NAMECHANGE:
-                    if (hwnd == _foregroundWindowHandle && IsWindowVisible(hwnd))
-                    {
-                        LogWinEvent(hwnd);
-                    }
-                    break;
-
-                case EVENT_SYSTEM_FOREGROUND:
-                    if (IsWindowVisible(hwnd))
-                    {
-                        _foregroundWindowHandle = GetForegroundWindow();
-                        LogWinEvent(hwnd);
-                    }
-                    break;
-            }
-
-        }
-
-        private static void LogWinEvent(IntPtr hwnd)
-        {
-            const int nChars = 256;
-            StringBuilder buff = new StringBuilder(nChars);
-            string curTitle;
-            string moduleName;
-            string logFile = ConfigurationManager.AppSettings["LogFile"];
-
-            GetWindowText(hwnd, buff, nChars);
-            curTitle = buff.ToString();
-
-            if (curTitle != _cacheTitle)
-            {
-                _cacheTitle = curTitle;
-                moduleName = GetTopWindowName(hwnd);
-                System.IO.File.AppendAllText(logFile
-                    , string.Format("{0}, {1}, {2}, {3}{4}"
-                        , DateTime.Now.ToString("G")
-                        , hwnd.ToString()
-                        , moduleName
-                        , curTitle
-                        , Environment.NewLine
-                    )
-                );
-            }
-        }
-
-        private static void LogEffort(string logFile)
-        {
-            System.IO.File.AppendAllText(logFile, string.Format("=========================={0}", Environment.NewLine));
-            System.IO.File.AppendAllText(logFile, string.Format("{0}, {1}{2}", DateTime.Now.ToString("G"), _effort, Environment.NewLine));
-        }
-
-        private void PromptForCurrentEffort()
-        {
-            taskbarNotifier1.Pause();
-            string value = _effort;
-            if (TimeTrackerTrayApp.InputBox("Current Errort", "What are you currently working on.", ref value) == DialogResult.OK)
-            {
-                _effort = value;
-                taskbarNotifier1.Hide();
-                LogEffort(_logFile);
-                timer.Stop();
-                timer.Start();
-            }
-            else
-            {
-                taskbarNotifier1.Resume();
-            }
-        }
 
         public static string GetTopWindowName(IntPtr hWnd)
         {
@@ -405,32 +305,18 @@ namespace TimeTracker
             return lpszFileName.ToString();
         }
 
-        void OnSessionLock()
+        private static string GetActiveWindowTitle()
         {
-            timer.Enabled = false;
-            System.IO.File.AppendAllText(_logFile, string.Format("#######################################################################{0}", Environment.NewLine));
-            System.IO.File.AppendAllText(_logFile, string.Format("{0}, {1}{2}", DateTime.Now.ToString("G"), "Work Station Locked", Environment.NewLine));
-        }
+            const int nChars = 256;
+            IntPtr handle = IntPtr.Zero;
+            StringBuilder Buff = new StringBuilder(nChars);
+            handle = GetForegroundWindow();
 
-        void OnSessionUnlock()
-        {
-            System.IO.File.AppendAllText(_logFile, string.Format("{0}, {1}{2}", DateTime.Now.ToString("G"), "Work Station UnLocked", Environment.NewLine));
-            System.IO.File.AppendAllText(_logFile, string.Format("#######################################################################{0}", Environment.NewLine));
-            timer.Enabled = true;
-        }
-
-        private void InitializeComponent()
-        {
-            System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(TimeTrackerTrayApp));
-            this.SuspendLayout();
-            // 
-            // TimeTrackerTrayApp
-            // 
-            this.ClientSize = new System.Drawing.Size(284, 262);
-            this.Icon = ((System.Drawing.Icon)(resources.GetObject("$this.Icon")));
-            this.Name = "TimeTrackerTrayApp";
-            this.ResumeLayout(false);
-
+            if (GetWindowText(handle, Buff, nChars) > 0)
+            {
+                return Buff.ToString();
+            }
+            return null;
         }
 
         private static DialogResult InputBox(string title, string promptText, ref string value)
@@ -474,7 +360,116 @@ namespace TimeTracker
             value = textBox.Text;
             return dialogResult;
         }
-        
-        #endregion
+
+        private static void LogEffort(string logFile)
+        {
+            System.IO.File.AppendAllText(logFile, string.Format("=========================={0}", Environment.NewLine));
+            System.IO.File.AppendAllText(logFile, string.Format("{0}, {1}{2}", DateTime.Now.ToString("G"), _effort, Environment.NewLine));
+        }
+
+        private static void LogWinEvent(IntPtr hwnd)
+        {
+            const int nChars = 256;
+            StringBuilder buff = new StringBuilder(nChars);
+            string curTitle;
+            string moduleName;
+            string logFile = ConfigurationManager.AppSettings["LogFile"];
+
+            GetWindowText(hwnd, buff, nChars);
+            curTitle = buff.ToString();
+
+            if (curTitle != _cacheTitle)
+            {
+                _cacheTitle = curTitle;
+                moduleName = GetTopWindowName(hwnd);
+                System.IO.File.AppendAllText(logFile
+                    , string.Format("{0}, {1}, {2}, {3}{4}"
+                        , DateTime.Now.ToString("G")
+                        , hwnd.ToString()
+                        , moduleName
+                        , curTitle
+                        , Environment.NewLine
+                    )
+                );
+            }
+        }
+
+        private static void WinEventProc(IntPtr hWinEventHook, uint eventType,
+            IntPtr hwnd, int idObject, int idChild, uint dwEventThread, uint dwmsEventTime)
+        {
+            switch (eventType)
+            {
+                case EVENT_OBJECT_NAMECHANGE:
+                    if (hwnd == _foregroundWindowHandle && IsWindowVisible(hwnd))
+                    {
+                        LogWinEvent(hwnd);
+                    }
+                    break;
+
+                case EVENT_SYSTEM_FOREGROUND:
+                    if (IsWindowVisible(hwnd))
+                    {
+                        _foregroundWindowHandle = GetForegroundWindow();
+                        LogWinEvent(hwnd);
+                    }
+                    break;
+            }
+        }
+
+        private void InitializeComponent()
+        {
+            System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(TimeTrackerTrayApp));
+            this.SuspendLayout();
+            //
+            // TimeTrackerTrayApp
+            //
+            this.ClientSize = new System.Drawing.Size(284, 262);
+            this.Icon = ((System.Drawing.Icon)(resources.GetObject("$this.Icon")));
+            this.Name = "TimeTrackerTrayApp";
+            this.ResumeLayout(false);
+        }
+
+        private void OnSessionLock()
+        {
+            timer.Enabled = false;
+            System.IO.File.AppendAllText(_logFile, string.Format("#######################################################################{0}", Environment.NewLine));
+            System.IO.File.AppendAllText(_logFile, string.Format("{0}, {1}{2}", DateTime.Now.ToString("G"), "Work Station Locked", Environment.NewLine));
+        }
+
+        private void OnSessionUnlock()
+        {
+            System.IO.File.AppendAllText(_logFile, string.Format("{0}, {1}{2}", DateTime.Now.ToString("G"), "Work Station UnLocked", Environment.NewLine));
+            System.IO.File.AppendAllText(_logFile, string.Format("#######################################################################{0}", Environment.NewLine));
+            timer.Enabled = true;
+        }
+
+        private void PromptForCurrentEffort()
+        {
+            taskbarNotifier1.Pause();
+            string value = _effort;
+            if (TimeTrackerTrayApp.InputBox("Current Errort", "What are you currently working on.", ref value) == DialogResult.OK)
+            {
+                _effort = value;
+                taskbarNotifier1.Hide();
+                LogEffort(_logFile);
+                timer.Stop();
+                timer.Start();
+            }
+            else
+            {
+                taskbarNotifier1.Resume();
+            }
+        }
+
+        private void ShowPopup()
+        {
+            //taskbarNotifier1.Show("What are you working on?", _effort, Int32.Parse("500"), Int32.Parse("10000"), Int32.Parse("5000"));
+            trayIcon.BalloonTipTitle = "What are you working on?";
+            trayIcon.BalloonTipText = _effort;
+            trayIcon.ShowBalloonTip(BALOON_VISIBILITY_TIME);
+            logTimer.Enabled = true;
+        }
+
+        #endregion private implementation
     }
 }
